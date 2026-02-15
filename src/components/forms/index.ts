@@ -1,0 +1,1 @@
+export { ResumeAnalysisForm } from "./ResumeAnalysisForm";

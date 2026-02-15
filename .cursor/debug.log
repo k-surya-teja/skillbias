@@ -1,0 +1,2 @@
+{"runId":"logo-stale-investigation","hypothesisId":"H4","location":"src/components/navbar/ThemeModeToggle.tsx:20","message":"Theme toggle mode snapshot","data":{"computedMode":"light","resolvedMode":"light","isDarkMode":false,"hasDarkClass":false},"timestamp":1771077517075}
+{"runId":"logo-stale-investigation","hypothesisId":"H4","location":"src/components/navbar/ThemeModeToggle.tsx:20","message":"Theme toggle mode snapshot","data":{"computedMode":"light","resolvedMode":"light","isDarkMode":false,"hasDarkClass":false},"timestamp":1771077517418}

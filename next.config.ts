@@ -1,7 +1,11 @@
 import type { NextConfig } from "next";
+import withFlowbiteReact from "flowbite-react/plugin/nextjs";
 
 const nextConfig: NextConfig = {
-  /* config options here */
+  turbopack: {
+    root: process.cwd(),
+  },
+  serverExternalPackages: ["pdf-parse", "pdfjs-dist"],
 };
 
-export default nextConfig;
+export default withFlowbiteReact(nextConfig);

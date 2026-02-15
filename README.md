@@ -1,36 +1,88 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# SkillBias
 
-## Getting Started
+SkillBias is a Next.js App Router frontend with a modular ATS backend stack:
 
-First, run the development server:
+- Next.js frontend (`src/`)
+- Express + MongoDB ATS API (`backend/`)
+- Python FastAPI resume analyzer (`python-service/`)
+
+## Local Setup
+
+### 1) Frontend (Next.js)
 
 ```bash
+npm install
 npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
 ```
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+Frontend runs at `http://localhost:3000`.
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+### 2) ATS Backend (Express)
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+```bash
+cd backend
+npm install
+npm run dev
+```
 
-## Learn More
+Backend runs at `http://localhost:4000`.
 
-To learn more about Next.js, take a look at the following resources:
+### 3) Python Resume Analyzer
 
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
+```bash
+cd python-service
+python -m venv .venv
+source .venv/bin/activate
+pip install -r requirements.txt
+uvicorn app:app --reload --port 8001
+```
 
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
+Analyzer runs at `http://127.0.0.1:8001`.
 
-## Deploy on Vercel
+## Environment Variables
 
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
+Copy the example files and fill values:
 
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+- Root frontend: `.env.example`
+- Backend: `backend/.env.example`
+- Python service: `python-service/.env.example`
+
+Key variables:
+
+- `NEXT_PUBLIC_ATS_API_BASE_URL` (frontend -> backend URL)
+- `NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY` (frontend Clerk auth)
+- `GROQ_API_KEY` (backend AI scoring)
+- `MONGODB_URI` (backend DB connection)
+- `JWT_SECRET` (backend auth)
+- `CLERK_SECRET_KEY` (backend Clerk token verification)
+- `PYTHON_ANALYZER_URL` (backend -> python analyzer URL)
+
+## ATS Routes
+
+Organization auth:
+
+- `POST /auth/signup`
+- `POST /auth/login`
+- `GET /auth/me`
+
+Job management:
+
+- `POST /jobs/create`
+- `GET /jobs`
+- `GET /jobs/:id`
+- `PUT /jobs/:id`
+- `DELETE /jobs/:id`
+- `GET /jobs/:id/applications`
+- `GET /jobs/:id/export`
+
+Public application:
+
+- `GET /public/apply/:jobId`
+- `POST /public/apply/:jobId`
+
+## Notes
+
+- One email can apply only once per job (`Application(jobId, email)` unique index).
+- First job post is free; additional posts require `plan=pro`.
+- Job auto-close runs during dashboard/jobs read paths when `endDate` has passed.
+- Local resume uploads are stored under `uploads/resumes`.
