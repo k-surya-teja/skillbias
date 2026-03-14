@@ -2,11 +2,11 @@
 
 import Link from "next/link";
 import { Button } from "flowbite-react";
-import { useAuth } from "@clerk/nextjs";
+import { useOrgProfile } from "@/lib/ats/useOrgProfile";
 import { HeroCard, type HeroCardData } from "./HeroCard";
 
 export function HeroSection() {
-  const { isSignedIn } = useAuth();
+  const { isSignedIn } = useOrgProfile();
 
   const heroCards: HeroCardData[] = [
     {

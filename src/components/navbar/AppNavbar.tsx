@@ -1,19 +1,17 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { useAuth } from "@clerk/nextjs";
 import {
   Button,
   Dropdown,
   DropdownItem,
   Navbar,
-  NavbarBrand,
-  useThemeMode,
 } from "flowbite-react";
 import { CircleUserRound, Loader2, LogOut, Menu } from "lucide-react";
-import Image from "next/image";
-import { ensureAtsSessionFromClerk } from "@/lib/ats/clerkSession";
+import Link from "next/link";
+import { usePathname } from "next/navigation";
 import { useOrgProfile } from "@/lib/ats/useOrgProfile";
+import { useSidebar } from "@/contexts/SidebarContext";
 import { cn } from "@/lib/utils";
 import { ThemeModeToggle } from "./ThemeModeToggle";
 
@@ -22,33 +20,26 @@ type AppNavbarProps = {
   homeScrollMorph?: boolean;
 };
 
+const navLinks = [
+  { href: "/jobs", label: "Jobs" },
+  { href: "/resume-check", label: "Resume Check" },
+  { href: "/org/entry", label: "Companies" },
+] as const;
+
 export function AppNavbar({ onOpenSidebar, homeScrollMorph = false }: AppNavbarProps = {}) {
-  const { isSignedIn, isLoaded, getToken } = useAuth();
-  const { computedMode } = useThemeMode();
-  const { companyName, logout } = useOrgProfile();
+  const pathname = usePathname();
+  const isOrgRoute = pathname.startsWith("/org/") && pathname !== "/org/entry";
+  const { companyName, isSignedIn, logout } = useOrgProfile();
+  const { collapsed, toggle: toggleSidebar } = useSidebar();
   const [isLoggingOut, setIsLoggingOut] = useState(false);
   const [isPastHero, setIsPastHero] = useState(!homeScrollMorph);
-  const logoSrc = computedMode === "dark" ? "/logo-light.png" : "/logo.png";
 
   useEffect(() => {
-    if (!isLoaded || !isSignedIn) {
-      return;
-    }
-
-    // Best effort sync so ATS backend cookie is available.
-    void ensureAtsSessionFromClerk(getToken).catch(() => {});
-  }, [getToken, isLoaded, isSignedIn]);
-
-  useEffect(() => {
-    if (!homeScrollMorph) {
-      return;
-    }
-
+    if (!homeScrollMorph) return;
     const onScroll = () => {
       const threshold = Math.max(window.innerHeight * 0.78, 460);
       setIsPastHero(window.scrollY > threshold);
     };
-
     onScroll();
     window.addEventListener("scroll", onScroll, { passive: true });
     window.addEventListener("resize", onScroll);
@@ -70,24 +61,64 @@ export function AppNavbar({ onOpenSidebar, homeScrollMorph = false }: AppNavbarP
           : "w-full border-b border-gray-200/70 bg-white dark:border-gray-800 dark:bg-gray-950",
       )}
     >
-      <NavbarBrand href="/" className="flex items-center gap-2">
-        <Image
-          src={logoSrc}
-          alt="SkillBias logo"
-          width={120}
-          height={24}
-          priority
-          className="h-6 w-auto"
-        />
-        <span className="self-center whitespace-nowrap text-3xl font-semibold dark:text-white">
-          SkillBias
-        </span>
-      </NavbarBrand>
+      <div className="flex items-center gap-2">
+        {isOrgRoute && (
+          <button
+            type="button"
+            onClick={toggleSidebar}
+            className="hidden rounded-lg p-2 text-gray-500 hover:bg-gray-100 dark:text-gray-400 dark:hover:bg-gray-800 md:inline-flex"
+            aria-label={collapsed ? "Open sidebar" : "Close sidebar"}
+          >
+            <Menu className="h-5 w-5" />
+          </button>
+        )}
+        <Link href="/" className="flex items-center gap-1.5">
+          <img
+            src="/logo.png"
+            alt="SkillBias logo"
+            width={80}
+            height={16}
+            className="h-4 w-auto dark:hidden"
+          />
+          <img
+            src="/logo-light.png"
+            alt="SkillBias logo"
+            width={80}
+            height={16}
+            className="hidden h-4 w-auto dark:block"
+          />
+          <span className="self-center whitespace-nowrap text-xl font-semibold dark:text-white">
+            SkillBias
+          </span>
+        </Link>
+      </div>
+
+      {!isOrgRoute && (
+        <div className="hidden items-center gap-6 md:order-1 md:flex">
+          {navLinks.map(({ href, label }) => {
+            const active = pathname === href || pathname.startsWith(`${href}/`);
+            return (
+              <Link
+                key={href}
+                href={href}
+                className={cn(
+                  "border-b-2 pb-0.5 text-sm font-medium transition-colors",
+                  active
+                    ? "border-gray-900 text-gray-900 dark:border-white dark:text-white"
+                    : "border-transparent text-gray-500 hover:border-gray-300 hover:text-gray-900 dark:text-gray-400 dark:hover:border-gray-600 dark:hover:text-white",
+                )}
+              >
+                {label}
+              </Link>
+            );
+          })}
+        </div>
+      )}
 
       <div className="flex items-center gap-2 md:order-2">
         {onOpenSidebar && (
-          <Button color="light" pill className="md:hidden !p-2.5" onClick={onOpenSidebar}>
-            <Menu className="h-5 w-5" />
+          <Button color="light" pill className="md:hidden !p-2" onClick={onOpenSidebar}>
+            <Menu className="h-4 w-4" />
           </Button>
         )}
         <ThemeModeToggle />
@@ -101,8 +132,8 @@ export function AppNavbar({ onOpenSidebar, homeScrollMorph = false }: AppNavbarP
               },
             }}
             label={
-              <span className="flex items-center rounded-full border border-gray-200 p-2.5 dark:border-gray-700">
-                <CircleUserRound className="h-5 w-5" />
+              <span className="flex items-center rounded-full border border-gray-200 p-2 dark:border-gray-700">
+                <CircleUserRound className="h-4 w-4" />
               </span>
             }
           >
@@ -110,9 +141,7 @@ export function AppNavbar({ onOpenSidebar, homeScrollMorph = false }: AppNavbarP
             <DropdownItem
               icon={isLoggingOut ? () => <Loader2 className="h-4 w-4 animate-spin" /> : LogOut}
               onClick={() => {
-                if (isLoggingOut) {
-                  return;
-                }
+                if (isLoggingOut) return;
                 setIsLoggingOut(true);
                 void logout().finally(() => setIsLoggingOut(false));
               }}
@@ -121,7 +150,7 @@ export function AppNavbar({ onOpenSidebar, homeScrollMorph = false }: AppNavbarP
             </DropdownItem>
           </Dropdown>
         ) : (
-          <Button color="light" pill href="/org/login">
+          <Button color="light" pill size="sm" href="/org/login">
             Sign In
           </Button>
         )}

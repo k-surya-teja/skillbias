@@ -37,6 +37,7 @@ const jobSchema = new Schema(
     formFields: { type: [formFieldSchema], default: [] },
     scoringWeights: { type: scoringWeightsSchema, default: () => ({}) },
     status: { type: String, enum: ["active", "closed"], default: "active" },
+    isPublic: { type: Boolean, default: false },
     applyLink: { type: String, required: true, unique: true },
   },
   { timestamps: { createdAt: true, updatedAt: true } },

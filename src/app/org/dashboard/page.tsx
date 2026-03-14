@@ -1,7 +1,7 @@
 "use client";
 
+import { useRouter } from "next/navigation";
 import { useCallback, useEffect, useMemo, useState } from "react";
-import { useAuth } from "@clerk/nextjs";
 import { BarChart3 } from "lucide-react";
 import {
   Bar,
@@ -18,23 +18,23 @@ import {
   Cell,
 } from "recharts";
 import { OrgPageShell } from "@/components/org/OrgPageShell";
+import { useAuth } from "@/contexts/AuthContext";
 import { getCurrentOrganization } from "@/lib/ats/auth";
 import { getDashboardStats } from "@/lib/ats/analytics";
-import { ensureAtsSessionFromClerk } from "@/lib/ats/clerkSession";
 import { getAtsSocket } from "@/lib/ats/socket";
 import { DashboardStatsResponse } from "@/lib/ats/types";
 
 const PIE_COLORS = ["#6366f1", "#22c55e", "#f59e0b", "#06b6d4", "#ef4444"];
 
 export default function OrgDashboardPage() {
-  const { getToken, isLoaded, isSignedIn } = useAuth();
+  const router = useRouter();
+  const { organization, isLoaded } = useAuth();
   const [data, setData] = useState<DashboardStatsResponse | null>(null);
   const [orgId, setOrgId] = useState<string>("");
   const [error, setError] = useState("");
 
   const load = useCallback(async () => {
     try {
-      await ensureAtsSessionFromClerk(getToken);
       const [orgRes, statsRes] = await Promise.all([getCurrentOrganization(), getDashboardStats()]);
       setOrgId(orgRes.organization.id ?? orgRes.organization._id ?? "");
       setData(statsRes);
@@ -42,18 +42,17 @@ export default function OrgDashboardPage() {
     } catch (dashboardError) {
       setError(dashboardError instanceof Error ? dashboardError.message : "Failed to load dashboard");
     }
-  }, [getToken]);
+  }, []);
 
   useEffect(() => {
-    if (!isLoaded || !isSignedIn) {
+    if (!isLoaded) return;
+    if (!organization) {
+      router.replace("/org/login");
       return;
     }
-
-    const timer = setTimeout(() => {
-      void load();
-    }, 0);
+    const timer = setTimeout(() => void load(), 0);
     return () => clearTimeout(timer);
-  }, [isLoaded, isSignedIn, load]);
+  }, [isLoaded, organization, router, load]);
 
   useEffect(() => {
     if (!orgId) {

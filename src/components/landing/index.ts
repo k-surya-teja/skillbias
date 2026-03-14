@@ -1,5 +1,6 @@
 export { ActivityTicker } from "./ActivityTicker";
 export { CompanySection } from "./CompanySection";
+export { ConsultationSection } from "./ConsultationSection";
 export { DemoPreview } from "./DemoPreview";
 export { FAQ } from "./FAQ";
 export { HowItWorks } from "./HowItWorks";

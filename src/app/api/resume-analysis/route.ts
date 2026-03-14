@@ -896,7 +896,7 @@ export async function POST(request: Request) {
       return NextResponse.json(
         {
           ok: false,
-          message: "Please upload a resume.",
+          message: "This doesn't seem like a resume. Please upload a valid resume.",
         },
         { status: 400 },
       );
@@ -909,7 +909,7 @@ export async function POST(request: Request) {
       return NextResponse.json(
         {
           ok: false,
-          message: "Please upload a resume.",
+          message: "This doesn't seem like a resume. Please upload a valid resume.",
         },
         { status: 400 },
       );

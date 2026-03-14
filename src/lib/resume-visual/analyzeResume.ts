@@ -377,7 +377,10 @@ export async function analyzeResumeVisual(
       text: text.combinedText,
     })
   ) {
-    throw new ResumeVisualAnalysisError("Please upload a resume.", 400);
+    throw new ResumeVisualAnalysisError(
+      "This doesn't seem like a resume. Please upload a valid resume.",
+      400
+    );
   }
 
   const [layout, imagesResult] = await Promise.all([

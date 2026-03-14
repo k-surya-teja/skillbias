@@ -46,10 +46,14 @@ yarn-error.log*
 *.tsbuildinfo
 next-env.d.ts
 
-# clerk configuration (can include secrets)
+# clerk (legacy temp files)
 /.clerk/
 
 # python
 python-service/.venv
 .venv
+__pycache__/
+
+# docker
+docker-compose.override.yml
 

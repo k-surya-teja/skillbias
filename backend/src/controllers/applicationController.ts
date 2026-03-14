@@ -5,7 +5,7 @@ import { ApplicationModel } from "../models/Application.js";
 import { JobModel } from "../models/Job.js";
 import { AuthenticatedRequest } from "../types/index.js";
 import { scoreCandidateWithGroq } from "../services/groqScoringService.js";
-import { analyzeResumeFile } from "../services/resumeAnalyzerService.js";
+import { analyzeResumeFile, ResumeMetrics } from "../services/resumeAnalyzerService.js";
 import { computeWeightedScore } from "../services/scoringService.js";
 import { emitCandidateScored } from "../sockets/index.js";
 import { isDuplicateKeyError } from "../utils/mongoErrors.js";
@@ -70,6 +70,16 @@ export async function submitApplication(req: Request, res: Response): Promise<vo
   }
 }
 
+const DEFAULT_SCORING_WEIGHTS = { skills: 40, experience: 25, format: 15, answers: 20 };
+
+const FALLBACK_RESUME_METRICS: ResumeMetrics = {
+  fontConsistency: 75,
+  alignmentScore: 70,
+  spacingScore: 70,
+  detectedSkills: [],
+  experienceYears: 0,
+};
+
 async function processSubmission(input: {
   applicationId: string;
   jobId: string;
@@ -81,27 +91,64 @@ async function processSubmission(input: {
     return;
   }
 
-  const resumeMetrics = await analyzeResumeFile(input.filePath);
-  const aiResult = await scoreCandidateWithGroq({
-    requirements: job.requirements,
-    requiredSkills: job.requiredSkills,
-    resumeMetrics,
-  });
+  try {
+    let resumeMetrics: ResumeMetrics;
+    let usedFallbackMetrics = false;
 
-  const finalScore = computeWeightedScore({
-    aiScore: aiResult.score,
-    resumeMetrics,
-    weights: job.scoringWeights,
-  });
+    try {
+      resumeMetrics = await analyzeResumeFile(input.filePath);
+    } catch (analyzerErr) {
+      console.warn(
+        "[processSubmission] Python analyzer unavailable, using fallback metrics:",
+        analyzerErr instanceof Error ? analyzerErr.message : "unknown error",
+      );
+      resumeMetrics = FALLBACK_RESUME_METRICS;
+      usedFallbackMetrics = true;
+    }
 
-  await ApplicationModel.findByIdAndUpdate(input.applicationId, {
-    resumeAnalysis: resumeMetrics,
-    score: finalScore,
-    aiFeedback: aiResult.feedback,
-    status: "applied",
-  });
+    const aiResult = await scoreCandidateWithGroq({
+      requirements: job.requirements ?? "",
+      requiredSkills: job.requiredSkills ?? [],
+      resumeMetrics,
+    });
 
-  emitCandidateScored(input.orgId, { jobId: input.jobId });
+    const weights =
+      job.scoringWeights &&
+      typeof job.scoringWeights === "object" &&
+      [job.scoringWeights.skills, job.scoringWeights.experience, job.scoringWeights.format, job.scoringWeights.answers].every(
+        (w) => typeof w === "number",
+      )
+        ? job.scoringWeights
+        : DEFAULT_SCORING_WEIGHTS;
+
+    const finalScore = computeWeightedScore({
+      aiScore: aiResult.score,
+      resumeMetrics,
+      weights,
+    });
+
+    const feedback = usedFallbackMetrics
+      ? `${aiResult.feedback}\n\n(Note: Resume layout analysis was unavailable. Score is based on AI content review only.)`
+      : aiResult.feedback;
+
+    await ApplicationModel.findByIdAndUpdate(input.applicationId, {
+      resumeAnalysis: resumeMetrics,
+      score: finalScore,
+      aiFeedback: feedback,
+      status: "applied",
+    });
+
+    emitCandidateScored(input.orgId, { jobId: input.jobId });
+  } catch (err) {
+    const message = err instanceof Error ? err.message : "Scoring failed";
+    console.error("[processSubmission] Scoring failed:", message);
+    await ApplicationModel.findByIdAndUpdate(input.applicationId, {
+      score: 0,
+      aiFeedback: `Scoring could not be completed. (${message}) You can still review this application manually.`,
+      status: "applied",
+    });
+    emitCandidateScored(input.orgId, { jobId: input.jobId });
+  }
 }
 
 export async function updateApplication(req: AuthenticatedRequest, res: Response): Promise<void> {

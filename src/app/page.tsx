@@ -2,6 +2,7 @@ import { HeroSection } from "@/components/hero";
 import {
   ActivityTicker,
   CompanySection,
+  ConsultationSection,
   DemoPreview,
   FAQ,
   HowItWorks,
@@ -21,6 +22,7 @@ export default function Home() {
       <DemoPreview />
       <TrustSection />
       <CompanySection />
+      <ConsultationSection />
       <FAQ />
       <Footer />
       <StickyCTA />

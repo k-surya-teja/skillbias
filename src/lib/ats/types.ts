@@ -32,7 +32,20 @@ export type Job = {
   formFields: JobFormField[];
   scoringWeights: JobScoringWeights;
   status: "active" | "closed";
+  isPublic?: boolean;
   applyLink: string;
+};
+
+export type PublicJob = {
+  _id: string;
+  title: string;
+  description: string;
+  requirements: string;
+  requiredSkills: string[];
+  endDate: string;
+  applyLink: string;
+  companyName: string;
+  companyLogo: string;
 };
 
 export type Application = {

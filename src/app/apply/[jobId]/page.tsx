@@ -53,7 +53,7 @@ export default function ApplyPage() {
   async function onSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     if (!resume) {
-      setError("Please upload a resume");
+      setError("This doesn't seem like a resume. Please upload a valid resume.");
       return;
     }
 
@@ -137,7 +137,7 @@ export default function ApplyPage() {
                     </Select>
                   ) : (
                     <TextInput
-                      type={field.type === "textarea" ? "text" : field.type}
+                      type={field.type}
                       required={field.required}
                       onChange={(event) =>
                         setAnswers((prev) => ({ ...prev, [field.label]: event.target.value }))

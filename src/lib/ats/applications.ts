@@ -1,4 +1,9 @@
 import { atsFetch } from "./api";
+import type { PublicJob } from "./types";
+
+export async function listPublicJobs(): Promise<{ jobs: PublicJob[] }> {
+  return atsFetch("/public/jobs");
+}
 
 export async function getPublicJob(jobId: string) {
   return atsFetch<{ job: Record<string, unknown> }>(`/public/apply/${jobId}`);

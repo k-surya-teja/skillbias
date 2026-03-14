@@ -1,0 +1,9 @@
+node_modules
+.next
+backend
+python-service
+uploads
+.env*
+.git
+.gitignore
+*.md

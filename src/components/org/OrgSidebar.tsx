@@ -1,5 +1,6 @@
 "use client";
 
+import { type MouseEvent } from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { LogOut } from "lucide-react";
@@ -11,7 +12,7 @@ const LINKS = [
 ];
 
 type OrgSidebarProps = {
-  onNavigate?: () => void;
+  onNavigate?: (href: string, e: MouseEvent) => void;
 };
 
 export function OrgSidebar({ onNavigate }: OrgSidebarProps = {}) {
@@ -32,7 +33,7 @@ export function OrgSidebar({ onNavigate }: OrgSidebarProps = {}) {
                 <Link
                   key={item.href}
                   href={item.href}
-                  onClick={onNavigate}
+                  onClick={(e) => onNavigate?.(item.href, e)}
                   className={`block rounded-lg px-3 py-2 text-sm font-medium transition ${
                     active
                       ? "bg-indigo-600 text-white"

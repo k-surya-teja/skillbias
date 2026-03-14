@@ -1,0 +1,44 @@
+services:
+  mongo:
+    image: mongo:7
+    ports:
+      - "27017:27017"
+    volumes:
+      - mongo-data:/data/db
+
+  python-analyzer:
+    build: ./python-service
+    ports:
+      - "8001:8001"
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8001/health')"]
+      interval: 10s
+      timeout: 5s
+      retries: 3
+
+  backend:
+    build: ./backend
+    ports:
+      - "4000:4000"
+    env_file: ./backend/.env.docker
+    volumes:
+      - backend-uploads:/app/uploads/resumes
+    depends_on:
+      mongo:
+        condition: service_started
+      python-analyzer:
+        condition: service_healthy
+
+  frontend:
+    build: .
+    ports:
+      - "3000:3000"
+    environment:
+      - NEXT_PUBLIC_ATS_API_BASE_URL=http://localhost:4000
+      - GROQ_API_KEY=${GROQ_API_KEY:-}
+    depends_on:
+      - backend
+
+volumes:
+  mongo-data:
+  backend-uploads:

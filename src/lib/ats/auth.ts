@@ -27,18 +27,6 @@ export async function getCurrentOrganization(): Promise<{ organization: Organiza
   return atsFetch("/auth/me");
 }
 
-export async function syncClerkToAtsSession(
-  clerkToken: string,
-): Promise<{ organization: Organization }> {
-  return atsFetch("/auth/clerk-sync", {
-    method: "POST",
-    headers: {
-      Authorization: `Bearer ${clerkToken}`,
-    },
-    body: JSON.stringify({}),
-  });
-}
-
 export async function logoutOrganization(): Promise<void> {
   await atsFetch("/auth/logout", {
     method: "POST",

@@ -1,0 +1,6 @@
+node_modules
+dist
+uploads/resumes/*
+!uploads/resumes/.gitkeep
+.env
+.env.*

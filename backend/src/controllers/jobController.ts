@@ -24,7 +24,7 @@ const scoringWeightSchema = z.object({
 
 const jobCreateSchema = z.object({
   title: z.string().min(2),
-  description: z.string().min(20),
+  description: z.string().min(10, { message: "Description must be at least 10 characters" }),
   requirements: z.string().optional().default(""),
   requiredSkills: z.array(z.string()).default([]),
   endDate: z.string().datetime(),
@@ -35,6 +35,7 @@ const jobCreateSchema = z.object({
     format: 15,
     answers: 20,
   }),
+  isPublic: z.boolean().default(false),
 });
 
 const jobUpdateSchema = jobCreateSchema.partial().extend({
@@ -173,6 +174,31 @@ export async function exportJobApplications(req: AuthenticatedRequest, res: Resp
   res.setHeader("Content-Type", "text/csv");
   res.setHeader("Content-Disposition", `attachment; filename="job-${id}-applications.csv"`);
   res.send(csv);
+}
+
+export async function listPublicJobs(_req: Request, res: Response): Promise<void> {
+  await autoCloseExpiredJobs();
+  const jobs = await JobModel.find({ isPublic: true, status: "active" })
+    .populate("orgId", "companyName logo")
+    .select("title description requirements requiredSkills endDate applyLink")
+    .sort({ createdAt: -1 });
+
+  const mapped = jobs.map((job) => {
+    const org = job.orgId as unknown as { companyName: string; logo?: string };
+    return {
+      _id: job._id,
+      title: job.title,
+      description: job.description,
+      requirements: job.requirements,
+      requiredSkills: job.requiredSkills,
+      endDate: job.endDate,
+      applyLink: job.applyLink,
+      companyName: org?.companyName ?? "",
+      companyLogo: org?.logo ?? "",
+    };
+  });
+
+  res.json({ jobs: mapped });
 }
 
 export async function getPublicJob(req: Request, res: Response): Promise<void> {

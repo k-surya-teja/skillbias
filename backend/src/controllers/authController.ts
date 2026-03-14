@@ -1,12 +1,12 @@
 import bcrypt from "bcryptjs";
 import { randomUUID } from "node:crypto";
 import { Request, Response } from "express";
-import { createClerkClient, verifyToken } from "@clerk/backend";
 import { z } from "zod";
 import { env } from "../config/env.js";
 import { OrganizationModel } from "../models/Organization.js";
 import { AuthenticatedRequest } from "../types/index.js";
 import { getAuthCookieName, signOrganizationToken } from "../utils/jwt.js";
+import { isDuplicateKeyError } from "../utils/mongoErrors.js";
 
 const signupSchema = z.object({
   companyName: z.string().min(2),
@@ -29,10 +29,6 @@ function setAuthCookie(res: Response, token: string): void {
   });
 }
 
-const clerkClient = env.CLERK_SECRET_KEY
-  ? createClerkClient({ secretKey: env.CLERK_SECRET_KEY })
-  : null;
-
 export async function signup(req: Request, res: Response): Promise<void> {
   const payload = signupSchema.parse(req.body);
 
@@ -43,14 +39,23 @@ export async function signup(req: Request, res: Response): Promise<void> {
   }
 
   const hashedPassword = await bcrypt.hash(payload.password, 12);
-  const organization = await OrganizationModel.create({
-    companyName: payload.companyName,
-    email: payload.email.toLowerCase(),
-    password: hashedPassword,
-    logo: payload.logo ?? "",
-    plan: "free",
-    freeJobUsed: false,
-  });
+  let organization;
+  try {
+    organization = await OrganizationModel.create({
+      companyName: payload.companyName,
+      email: payload.email.toLowerCase(),
+      password: hashedPassword,
+      logo: payload.logo ?? "",
+      plan: "free",
+      freeJobUsed: false,
+    });
+  } catch (error) {
+    if (isDuplicateKeyError(error)) {
+      res.status(409).json({ message: "Organization email already exists" });
+      return;
+    }
+    throw error;
+  }
 
   const token = signOrganizationToken({
     orgId: String(organization._id),
@@ -122,58 +127,120 @@ export function logout(_req: Request, res: Response): void {
   res.status(204).send();
 }
 
-export async function clerkSync(req: Request, res: Response): Promise<void> {
-  if (!env.CLERK_SECRET_KEY || !clerkClient) {
-    res.status(503).json({ message: "Clerk is not configured on backend" });
+const GOOGLE_AUTH_URL = "https://accounts.google.com/o/oauth2/v2/auth";
+const GOOGLE_TOKEN_URL = "https://oauth2.googleapis.com/token";
+const GOOGLE_USERINFO_URL = "https://www.googleapis.com/oauth2/v2/userinfo";
+
+function getBackendOrigin(): string {
+  return env.BACKEND_PUBLIC_ORIGIN ?? `http://localhost:${env.PORT}`;
+}
+
+export function googleAuth(_req: Request, res: Response): void {
+  if (!env.GOOGLE_CLIENT_ID) {
+    res.redirect(302, `${env.FRONTEND_ORIGIN}/org/login?error=google_not_configured`);
+    return;
+  }
+  const redirectUri = `${getBackendOrigin()}/auth/google/callback`;
+  const params = new URLSearchParams({
+    client_id: env.GOOGLE_CLIENT_ID,
+    redirect_uri: redirectUri,
+    response_type: "code",
+    scope: "openid email profile",
+    access_type: "offline",
+    prompt: "select_account",
+  });
+  res.redirect(302, `${GOOGLE_AUTH_URL}?${params.toString()}`);
+}
+
+export async function googleCallback(req: Request, res: Response): Promise<void> {
+  if (!env.GOOGLE_CLIENT_ID || !env.GOOGLE_CLIENT_SECRET) {
+    res.redirect(302, `${env.FRONTEND_ORIGIN}/org/login?error=google_not_configured`);
+    return;
+  }
+  const code = req.query.code as string | undefined;
+  if (!code) {
+    res.redirect(302, `${env.FRONTEND_ORIGIN}/org/login?error=missing_code`);
+    return;
+  }
+  const redirectUri = `${getBackendOrigin()}/auth/google/callback`;
+
+  const tokenRes = await fetch(GOOGLE_TOKEN_URL, {
+    method: "POST",
+    headers: { "Content-Type": "application/x-www-form-urlencoded" },
+    body: new URLSearchParams({
+      code,
+      client_id: env.GOOGLE_CLIENT_ID,
+      client_secret: env.GOOGLE_CLIENT_SECRET,
+      redirect_uri: redirectUri,
+      grant_type: "authorization_code",
+    }),
+  });
+  if (!tokenRes.ok) {
+    res.redirect(302, `${env.FRONTEND_ORIGIN}/org/login?error=token_failed`);
+    return;
+  }
+  const tokenData = (await tokenRes.json()) as { access_token?: string };
+  const accessToken = tokenData.access_token;
+  if (!accessToken) {
+    res.redirect(302, `${env.FRONTEND_ORIGIN}/org/login?error=no_token`);
     return;
   }
 
-  const authHeader = req.headers.authorization;
-  if (!authHeader?.startsWith("Bearer ")) {
-    res.status(401).json({ message: "Missing bearer token" });
+  const userRes = await fetch(GOOGLE_USERINFO_URL, {
+    headers: { Authorization: `Bearer ${accessToken}` },
+  });
+  if (!userRes.ok) {
+    res.redirect(302, `${env.FRONTEND_ORIGIN}/org/login?error=userinfo_failed`);
     return;
   }
-
-  const clerkToken = authHeader.slice("Bearer ".length);
-  const payload = await verifyToken(clerkToken, { secretKey: env.CLERK_SECRET_KEY });
-  const clerkUserId = payload.sub;
-
-  if (!clerkUserId) {
-    res.status(401).json({ message: "Invalid Clerk token payload" });
+  const userData = (await userRes.json()) as {
+    id: string;
+    email?: string;
+    name?: string;
+    given_name?: string;
+    family_name?: string;
+  };
+  const googleId = userData.id;
+  const email = userData.email?.toLowerCase();
+  if (!email) {
+    res.redirect(302, `${env.FRONTEND_ORIGIN}/org/login?error=no_email`);
     return;
   }
-
-  const clerkUser = await clerkClient.users.getUser(clerkUserId);
-  const primaryEmail = clerkUser.emailAddresses.find(
-    (email) => email.id === clerkUser.primaryEmailAddressId,
-  );
-
-  if (!primaryEmail?.emailAddress) {
-    res.status(400).json({ message: "No primary email found on Clerk user" });
-    return;
-  }
-
-  const normalizedEmail = primaryEmail.emailAddress.toLowerCase();
   const inferredCompanyName =
-    `${clerkUser.firstName ?? ""} ${clerkUser.lastName ?? ""}`.trim() || "Organization";
+    [userData.name, userData.given_name, userData.family_name].filter(Boolean).join(" ").trim() ||
+    "Organization";
 
   let organization =
-    (await OrganizationModel.findOne({ clerkUserId })) ??
-    (await OrganizationModel.findOne({ email: normalizedEmail }));
+    (await OrganizationModel.findOne({ googleId })) ??
+    (await OrganizationModel.findOne({ email }));
 
   if (!organization) {
     const placeholderPassword = await bcrypt.hash(randomUUID(), 12);
-    organization = await OrganizationModel.create({
-      companyName: inferredCompanyName,
-      email: normalizedEmail,
-      password: placeholderPassword,
-      clerkUserId,
-      plan: "free",
-      freeJobUsed: false,
-    });
+    try {
+      organization = await OrganizationModel.create({
+        companyName: inferredCompanyName,
+        email,
+        password: placeholderPassword,
+        googleId,
+        plan: "free",
+        freeJobUsed: false,
+      });
+    } catch (error) {
+      if (isDuplicateKeyError(error)) {
+        organization =
+          (await OrganizationModel.findOne({ googleId })) ??
+          (await OrganizationModel.findOne({ email }));
+        if (!organization) {
+          res.redirect(302, `${env.FRONTEND_ORIGIN}/org/login?error=email_exists`);
+          return;
+        }
+      } else {
+        throw error;
+      }
+    }
   } else {
-    if (!organization.clerkUserId) {
-      organization.clerkUserId = clerkUserId;
+    if (!organization.googleId) {
+      organization.googleId = googleId;
     }
     if (!organization.companyName || organization.companyName === "Organization") {
       organization.companyName = inferredCompanyName;
@@ -186,14 +253,5 @@ export async function clerkSync(req: Request, res: Response): Promise<void> {
     email: organization.email,
   });
   setAuthCookie(res, token);
-
-  res.json({
-    organization: {
-      id: organization._id,
-      companyName: organization.companyName,
-      email: organization.email,
-      plan: organization.plan,
-      freeJobUsed: organization.freeJobUsed,
-    },
-  });
+  res.redirect(302, `${env.FRONTEND_ORIGIN}/org/dashboard`);
 }

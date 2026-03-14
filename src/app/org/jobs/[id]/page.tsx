@@ -1,17 +1,17 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useState } from "react";
-import { useAuth } from "@clerk/nextjs";
-import { useParams } from "next/navigation";
+import { useAuth } from "@/contexts/AuthContext";
+import { useParams, useRouter } from "next/navigation";
 import { Button, Select, TextInput } from "flowbite-react";
 import { OrgPageShell } from "@/components/org/OrgPageShell";
 import { getJob, getJobApplications, getJobExportUrl } from "@/lib/ats/jobs";
 import { updateApplication } from "@/lib/ats/applications";
-import { ensureAtsSessionFromClerk } from "@/lib/ats/clerkSession";
 import { Application, Job } from "@/lib/ats/types";
 
 export default function JobDetailPage() {
-  const { getToken, isLoaded, isSignedIn } = useAuth();
+  const router = useRouter();
+  const { organization, isLoaded } = useAuth();
   const params = useParams<{ id: string }>();
   const jobId = params.id;
   const [job, setJob] = useState<Job | null>(null);
@@ -21,7 +21,6 @@ export default function JobDetailPage() {
 
   const load = useCallback(async () => {
     try {
-      await ensureAtsSessionFromClerk(getToken);
       const [jobRes, appRes] = await Promise.all([
         getJob(jobId),
         getJobApplications(jobId, { sortBy: "score", order: "desc", status: statusFilter || undefined }),
@@ -32,17 +31,17 @@ export default function JobDetailPage() {
     } catch (loadError) {
       setError(loadError instanceof Error ? loadError.message : "Failed to load job details");
     }
-  }, [getToken, jobId, statusFilter]);
+  }, [jobId, statusFilter]);
 
   useEffect(() => {
-    if (!isLoaded || !isSignedIn) {
+    if (!isLoaded) return;
+    if (!organization) {
+      router.replace("/org/login");
       return;
     }
-    const timer = setTimeout(() => {
-      void load();
-    }, 0);
+    const timer = setTimeout(() => void load(), 0);
     return () => clearTimeout(timer);
-  }, [isLoaded, isSignedIn, load]);
+  }, [isLoaded, organization, router, load]);
 
   const rankedApplications = useMemo(
     () => [...applications].sort((a, b) => b.score - a.score),

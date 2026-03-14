@@ -2,34 +2,20 @@
 
 import { useEffect } from "react";
 import { useRouter } from "next/navigation";
-import { useAuth } from "@clerk/nextjs";
-import { ensureAtsSessionFromClerk } from "@/lib/ats/clerkSession";
+import { useAuth } from "@/contexts/AuthContext";
 
 export default function OrgEntryPage() {
   const router = useRouter();
-  const { isLoaded, isSignedIn, getToken } = useAuth();
+  const { organization, isLoaded } = useAuth();
 
   useEffect(() => {
-    if (!isLoaded) {
+    if (!isLoaded) return;
+    if (!organization) {
+      router.replace("/org/login");
       return;
     }
-
-    async function checkSession() {
-      if (!isSignedIn) {
-        router.replace("/org/login");
-        return;
-      }
-
-      try {
-        await ensureAtsSessionFromClerk(getToken);
-        router.replace("/org/dashboard");
-      } catch {
-        router.replace("/org/login");
-      }
-    }
-
-    void checkSession();
-  }, [getToken, isLoaded, isSignedIn, router]);
+    router.replace("/org/dashboard");
+  }, [isLoaded, organization, router]);
 
   return (
     <main className="min-h-screen">

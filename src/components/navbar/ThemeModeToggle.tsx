@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { Button, useThemeMode } from "flowbite-react";
+import { useThemeMode } from "flowbite-react";
 import { Moon, Sun } from "lucide-react";
 
 export function ThemeModeToggle() {
@@ -24,16 +24,14 @@ export function ThemeModeToggle() {
   }, []);
 
   return (
-    <Button
-      color="light"
-      pill
+    <button
+      type="button"
       onClick={toggleMode}
       aria-label={label}
       title={label}
-      className="!p-2.5 mr-2 dark:!bg-gray-800 dark:!text-gray-100 dark:hover:!bg-gray-700"
+      className="flex items-center rounded-full border border-gray-200 p-2 text-gray-500 hover:bg-gray-100 dark:border-gray-700 dark:text-gray-300 dark:hover:bg-gray-800"
     >
-      {isDarkMode ? <Sun className="h-5 w-5" /> : <Moon className="h-5 w-5" />}
-      <span className="sr-only">{label}</span>
-    </Button>
+      {isDarkMode ? <Sun className="h-4 w-4" /> : <Moon className="h-4 w-4" />}
+    </button>
   );
 }

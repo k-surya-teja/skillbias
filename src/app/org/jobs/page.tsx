@@ -1,49 +1,57 @@
 "use client";
 
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import { useCallback, useEffect, useState } from "react";
-import { useAuth } from "@clerk/nextjs";
-import { Button } from "flowbite-react";
+import { useAuth } from "@/contexts/AuthContext";
+import { Button, Modal, ModalBody, ModalHeader } from "flowbite-react";
 import { OrgPageShell } from "@/components/org/OrgPageShell";
 import { deleteJob, listJobs } from "@/lib/ats";
-import { ensureAtsSessionFromClerk } from "@/lib/ats/clerkSession";
-import { Plus } from "lucide-react";
+import { CircleAlert, Plus } from "lucide-react";
 import { Job } from "@/lib/ats/types";
 
 export default function OrgJobsPage() {
-  const { getToken, isLoaded, isSignedIn } = useAuth();
+  const router = useRouter();
+  const { organization, isLoaded } = useAuth();
   const [jobs, setJobs] = useState<Job[]>([]);
   const [error, setError] = useState("");
+  const [deleteTarget, setDeleteTarget] = useState<Job | null>(null);
+  const [deleting, setDeleting] = useState(false);
 
   const loadJobs = useCallback(async () => {
     try {
-      await ensureAtsSessionFromClerk(getToken);
       const response = await listJobs();
       setJobs(response.jobs);
       setError("");
     } catch (jobsError) {
       setError(jobsError instanceof Error ? jobsError.message : "Failed to load jobs");
     }
-  }, [getToken]);
+  }, []);
 
-  async function onDelete(jobId: string) {
+  async function confirmDelete() {
+    if (!deleteTarget) return;
+    setDeleting(true);
     try {
-      await deleteJob(jobId);
+      await deleteJob(deleteTarget._id);
+      setDeleteTarget(null);
       await loadJobs();
     } catch (deleteError) {
       setError(deleteError instanceof Error ? deleteError.message : "Failed to delete job");
+      setDeleteTarget(null);
+    } finally {
+      setDeleting(false);
     }
   }
 
   useEffect(() => {
-    if (!isLoaded || !isSignedIn) {
+    if (!isLoaded) return;
+    if (!organization) {
+      router.replace("/org/login");
       return;
     }
-    const timer = setTimeout(() => {
-      void loadJobs();
-    }, 0);
+    const timer = setTimeout(() => void loadJobs(), 0);
     return () => clearTimeout(timer);
-  }, [isLoaded, isSignedIn, loadJobs]);
+  }, [isLoaded, organization, router, loadJobs]);
 
   return (
     <OrgPageShell>
@@ -82,7 +90,12 @@ export default function OrgJobsPage() {
                           View
                         </Button>
                       </Link>
-                      <Button color="failure" size="sm" onClick={() => onDelete(job._id)}>
+                      <Link href={`/org/jobs/${job._id}/edit`}>
+                        <Button color="light" size="sm">
+                          Edit
+                        </Button>
+                      </Link>
+                      <Button color="failure" size="sm" onClick={() => setDeleteTarget(job)}>
                         Delete
                       </Button>
                     </div>
@@ -101,6 +114,26 @@ export default function OrgJobsPage() {
           </table>
         </div>
       </div>
+
+      <Modal show={deleteTarget !== null} size="md" onClose={() => setDeleteTarget(null)} popup>
+        <ModalHeader />
+        <ModalBody>
+          <div className="text-center">
+            <CircleAlert className="mx-auto mb-4 h-14 w-14 text-gray-400 dark:text-gray-200" />
+            <h3 className="mb-5 text-lg font-normal text-gray-500 dark:text-gray-400">
+              Are you sure you want to delete <span className="font-semibold text-gray-900 dark:text-white">{deleteTarget?.title}</span>?
+            </h3>
+            <div className="flex justify-center gap-4">
+              <Button color="failure" onClick={confirmDelete} disabled={deleting}>
+                {deleting ? "Deleting..." : "Yes, delete"}
+              </Button>
+              <Button color="gray" onClick={() => setDeleteTarget(null)}>
+                Cancel
+              </Button>
+            </div>
+          </div>
+        </ModalBody>
+      </Modal>
     </OrgPageShell>
   );
 }

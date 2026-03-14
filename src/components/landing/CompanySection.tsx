@@ -4,7 +4,7 @@ import { motion } from "framer-motion";
 import { ArrowRight } from "lucide-react";
 import Link from "next/link";
 import { Button } from "flowbite-react";
-import { useAuth } from "@clerk/nextjs";
+import { useOrgProfile } from "@/lib/ats/useOrgProfile";
 
 const candidates = [
   { name: "Aarav Sharma", score: 93, top: true },
@@ -15,7 +15,7 @@ const candidates = [
 ];
 
 export function CompanySection() {
-  const { isSignedIn } = useAuth();
+  const { isSignedIn } = useOrgProfile();
   const ctaHref = isSignedIn ? "/org/jobs/create" : "/org/login";
 
   return (

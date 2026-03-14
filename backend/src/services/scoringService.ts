@@ -1,23 +1,29 @@
 import { JobScoringWeights } from "../types/index.js";
 import { ResumeMetrics } from "./resumeAnalyzerService.js";
 
-function normalizeWeights(weights: JobScoringWeights): JobScoringWeights {
-  const total = weights.skills + weights.experience + weights.format + weights.answers;
-  if (total <= 0) {
-    return { skills: 40, experience: 25, format: 15, answers: 20 };
+const DEFAULT_WEIGHTS: JobScoringWeights = { skills: 40, experience: 25, format: 15, answers: 20 };
+
+function normalizeWeights(weights: Partial<JobScoringWeights> | null | undefined): JobScoringWeights {
+  const s = Number(weights?.skills) || 0;
+  const e = Number(weights?.experience) || 0;
+  const f = Number(weights?.format) || 0;
+  const a = Number(weights?.answers) || 0;
+  const total = s + e + f + a;
+  if (total <= 0 || !Number.isFinite(total)) {
+    return DEFAULT_WEIGHTS;
   }
   return {
-    skills: (weights.skills / total) * 100,
-    experience: (weights.experience / total) * 100,
-    format: (weights.format / total) * 100,
-    answers: (weights.answers / total) * 100,
+    skills: (s / total) * 100,
+    experience: (e / total) * 100,
+    format: (f / total) * 100,
+    answers: (a / total) * 100,
   };
 }
 
 export function computeWeightedScore(input: {
   aiScore: number;
   resumeMetrics: ResumeMetrics;
-  weights: JobScoringWeights;
+  weights: Partial<JobScoringWeights> | null | undefined;
   answerQualityScore?: number;
 }): number {
   const weights = normalizeWeights(input.weights);

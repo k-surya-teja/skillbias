@@ -108,7 +108,6 @@ export async function extractLayoutFromPdf(
     data: new Uint8Array(pdfBuffer),
     useWorkerFetch: false,
     isEvalSupported: false,
-    disableWorker: true,
   });
   const pdfDocument = await loadingTask.promise;
   const pages: ResumeLayoutPageMeta[] = [];
