@@ -3,8 +3,12 @@
 import { useCallback, useEffect, useState } from "react";
 import { useAuth } from "@/contexts/AuthContext";
 import { useParams, useRouter } from "next/navigation";
+import { Button } from "flowbite-react";
+import { ArrowLeft } from "lucide-react";
+import Link from "next/link";
 import { OrgPageShell } from "@/components/org/OrgPageShell";
 import { JobForm, JobFormPayload } from "@/components/org/JobForm";
+import { useToast } from "@/contexts/ToastContext";
 import { getJob, updateJob } from "@/lib/ats/jobs";
 import { Job } from "@/lib/ats/types";
 
@@ -35,8 +39,11 @@ export default function EditJobPage() {
     return () => clearTimeout(timer);
   }, [isLoaded, organization, router, loadJob]);
 
+  const toast = useToast();
+
   async function handleUpdate(payload: JobFormPayload) {
     await updateJob(jobId, payload);
+    toast.success("Job updated successfully");
     router.push("/org/jobs");
   }
 
@@ -58,7 +65,12 @@ export default function EditJobPage() {
 
   return (
     <OrgPageShell>
-      <h1 className="mb-6 text-3xl font-bold tracking-tight text-gray-900 dark:text-white md:text-4xl">
+      <Link href="/org/jobs">
+        <Button size="xs" className="mb-3" color="light">
+          <ArrowLeft className="mr-1 h-4 w-4" />Go Back
+        </Button>
+      </Link>
+      <h1 className="mb-3 text-2xl font-bold tracking-tight text-gray-900 dark:text-white">
         Edit Job
       </h1>
       <JobForm initialData={job} onSubmit={handleUpdate} submitLabel="Update" />

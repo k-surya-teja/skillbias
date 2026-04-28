@@ -7,27 +7,41 @@ import { OrganizationModel } from "../models/Organization.js";
 import { AuthenticatedRequest } from "../types/index.js";
 import { getAuthCookieName, signOrganizationToken } from "../utils/jwt.js";
 import { isDuplicateKeyError } from "../utils/mongoErrors.js";
+import { serializeOrganization } from "../utils/serializeOrganization.js";
 
 const signupSchema = z.object({
   companyName: z.string().min(2),
   email: z.string().email(),
-  password: z.string().min(8),
+  password: z
+    .string()
+    .min(12, "Password must be at least 12 characters")
+    .regex(/[A-Z]/, "Password must contain an uppercase letter")
+    .regex(/[a-z]/, "Password must contain a lowercase letter")
+    .regex(/[0-9]/, "Password must contain a number"),
   logo: z.string().optional(),
 });
 
 const loginSchema = z.object({
   email: z.string().email(),
-  password: z.string().min(8),
+  password: z.string().min(1),
 });
+
+function getAuthCookieOptions() {
+  const isDev = env.NODE_ENV === "development";
+  return {
+    httpOnly: true,
+    secure: !isDev,
+    sameSite: "lax" as const,
+  };
+}
 
 function setAuthCookie(res: Response, token: string): void {
   res.cookie(getAuthCookieName(), token, {
-    httpOnly: true,
-    secure: process.env.NODE_ENV === "production",
-    sameSite: "lax",
+    ...getAuthCookieOptions(),
     maxAge: 7 * 24 * 60 * 60 * 1000,
   });
 }
+
 
 export async function signup(req: Request, res: Response): Promise<void> {
   const payload = signupSchema.parse(req.body);
@@ -63,15 +77,7 @@ export async function signup(req: Request, res: Response): Promise<void> {
   });
   setAuthCookie(res, token);
 
-  res.status(201).json({
-    organization: {
-      id: organization._id,
-      companyName: organization.companyName,
-      email: organization.email,
-      plan: organization.plan,
-      freeJobUsed: organization.freeJobUsed,
-    },
-  });
+  res.status(201).json({ organization: serializeOrganization(organization) });
 }
 
 export async function login(req: Request, res: Response): Promise<void> {
@@ -95,15 +101,7 @@ export async function login(req: Request, res: Response): Promise<void> {
   });
   setAuthCookie(res, token);
 
-  res.json({
-    organization: {
-      id: organization._id,
-      companyName: organization.companyName,
-      email: organization.email,
-      plan: organization.plan,
-      freeJobUsed: organization.freeJobUsed,
-    },
-  });
+  res.json({ organization: serializeOrganization(organization) });
 }
 
 export async function me(req: AuthenticatedRequest, res: Response): Promise<void> {
@@ -119,11 +117,28 @@ export async function me(req: AuthenticatedRequest, res: Response): Promise<void
     return;
   }
 
-  res.json({ organization });
+  const deduped = dedupeRepeatedName(organization.companyName);
+  if (deduped !== organization.companyName) {
+    organization.companyName = deduped;
+    await organization.save();
+  }
+
+  res.json({ organization: serializeOrganization(organization) });
+}
+
+function dedupeRepeatedName(name: string): string {
+  const trimmed = name.trim().replace(/\s+/g, " ");
+  const half = Math.floor(trimmed.length / 2);
+  if (trimmed.length % 2 === 1 && trimmed[half] === " ") {
+    const left = trimmed.slice(0, half);
+    const right = trimmed.slice(half + 1);
+    if (left && left === right) return left;
+  }
+  return trimmed;
 }
 
 export function logout(_req: Request, res: Response): void {
-  res.clearCookie(getAuthCookieName());
+  res.clearCookie(getAuthCookieName(), getAuthCookieOptions());
   res.status(204).send();
 }
 
@@ -207,7 +222,8 @@ export async function googleCallback(req: Request, res: Response): Promise<void>
     return;
   }
   const inferredCompanyName =
-    [userData.name, userData.given_name, userData.family_name].filter(Boolean).join(" ").trim() ||
+    (userData.name?.trim() ||
+      [userData.given_name, userData.family_name].filter(Boolean).join(" ").trim()) ||
     "Organization";
 
   let organization =

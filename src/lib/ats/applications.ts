@@ -1,8 +1,39 @@
 import { atsFetch } from "./api";
-import type { PublicJob } from "./types";
+import type {
+  CandidatesQuery,
+  CandidatesResponse,
+  PublicJobsQuery,
+  PublicJobsResponse,
+} from "./types";
 
-export async function listPublicJobs(): Promise<{ jobs: PublicJob[] }> {
-  return atsFetch("/public/jobs");
+export async function listAllCandidates(
+  query: CandidatesQuery = {},
+): Promise<CandidatesResponse> {
+  const params = new URLSearchParams();
+  if (query.q) params.set("q", query.q);
+  if (query.status) params.set("status", query.status);
+  if (query.jobId) params.set("jobId", query.jobId);
+  if (query.scoreMin !== undefined) params.set("scoreMin", String(query.scoreMin));
+  if (query.scoreMax !== undefined) params.set("scoreMax", String(query.scoreMax));
+  if (query.sort) params.set("sort", query.sort);
+  if (query.order) params.set("order", query.order);
+  if (query.page) params.set("page", String(query.page));
+  if (query.pageSize) params.set("pageSize", String(query.pageSize));
+  const suffix = params.toString() ? `?${params.toString()}` : "";
+  return atsFetch(`/applications${suffix}`);
+}
+
+export async function listPublicJobs(
+  query: PublicJobsQuery = {},
+): Promise<PublicJobsResponse> {
+  const params = new URLSearchParams();
+  if (query.q) params.set("q", query.q);
+  if (query.skills && query.skills.length > 0) params.set("skills", query.skills.join(","));
+  if (query.sort) params.set("sort", query.sort);
+  if (query.page) params.set("page", String(query.page));
+  if (query.pageSize) params.set("pageSize", String(query.pageSize));
+  const suffix = params.toString() ? `?${params.toString()}` : "";
+  return atsFetch(`/public/jobs${suffix}`);
 }
 
 export async function getPublicJob(jobId: string) {

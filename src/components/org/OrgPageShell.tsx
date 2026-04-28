@@ -57,7 +57,7 @@ export function OrgPageShell({ children }: OrgPageShellProps) {
         </aside>
 
         <section
-          className={`mx-0 w-auto py-6 transition-[margin] duration-300 ease-in-out md:py-10 md:mr-[6%] ${
+          className={`w-auto px-4 py-4 transition-[margin] duration-300 ease-in-out md:px-0 md:py-10 md:mr-[6%] ${
             collapsed ? "md:ml-[6%]" : "md:ml-[calc(16rem+3%)]"
           }`}
         >
