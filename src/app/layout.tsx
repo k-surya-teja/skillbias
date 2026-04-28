@@ -3,7 +3,9 @@ import { Geist, Geist_Mono } from "next/font/google";
 import { ThemeModeScript } from "flowbite-react";
 import { AuthProvider } from "@/contexts/AuthContext";
 import { SidebarProvider } from "@/contexts/SidebarContext";
+import { ToastProvider } from "@/contexts/ToastContext";
 import { ThemeFaviconSync } from "@/components/navbar";
+import { ApiLoadingIndicator, NavigationProgress } from "@/components/navigation";
 import { Container } from "@/components/ui";
 import "./globals.css";
 
@@ -35,10 +37,14 @@ export default function RootLayout({
       <body className={`${geistSans.variable} ${geistMono.variable} antialiased`}>
         <AuthProvider>
           <SidebarProvider>
-            <ThemeFaviconSync />
-            <div className="min-h-screen bg-white text-gray-900 dark:bg-gray-950 dark:text-white">
-              <Container>{children}</Container>
-            </div>
+            <ToastProvider>
+              <ThemeFaviconSync />
+              <NavigationProgress />
+              <ApiLoadingIndicator />
+              <div className="min-h-screen bg-white text-gray-900 dark:bg-gray-950 dark:text-white">
+                <Container>{children}</Container>
+              </div>
+            </ToastProvider>
           </SidebarProvider>
         </AuthProvider>
       </body>

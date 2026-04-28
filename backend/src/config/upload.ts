@@ -6,6 +6,12 @@ import { env } from "./env.js";
 const uploadDir = path.resolve(process.cwd(), env.UPLOADS_DIR);
 fs.mkdirSync(uploadDir, { recursive: true });
 
+const ALLOWED_RESUME_MIME_TYPES = new Set([
+  "application/pdf",
+  "application/msword",
+  "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+]);
+
 const storage = multer.diskStorage({
   destination: (_req, _file, cb) => {
     cb(null, uploadDir);
@@ -16,4 +22,17 @@ const storage = multer.diskStorage({
   },
 });
 
-export const resumeUpload = multer({ storage });
+export const resumeUpload = multer({
+  storage,
+  limits: {
+    fileSize: 10 * 1024 * 1024,
+    files: 1,
+  },
+  fileFilter: (_req, file, cb) => {
+    if (ALLOWED_RESUME_MIME_TYPES.has(file.mimetype)) {
+      cb(null, true);
+      return;
+    }
+    cb(new Error("Unsupported file type. Upload PDF or Word documents only."));
+  },
+});

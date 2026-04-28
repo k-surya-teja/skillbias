@@ -9,6 +9,9 @@ import { useOrgProfile } from "@/lib/ats/useOrgProfile";
 const LINKS = [
   { href: "/org/dashboard", label: "Dashboard" },
   { href: "/org/jobs", label: "Jobs" },
+  { href: "/org/candidates", label: "Candidates" },
+  { href: "/org/billing", label: "Billing" },
+  { href: "/org/settings", label: "Settings" },
 ];
 
 type OrgSidebarProps = {

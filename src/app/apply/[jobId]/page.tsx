@@ -5,6 +5,7 @@ import { useParams } from "next/navigation";
 import { Button, Label, Select, TextInput, Textarea } from "flowbite-react";
 import Link from "next/link";
 import { AppNavbar } from "@/components/navbar";
+import { useToast } from "@/contexts/ToastContext";
 import {
   getPublicJob,
   submitJobApplication as submitJobApplicationRequest,
@@ -28,6 +29,8 @@ export default function ApplyPage() {
   const [message, setMessage] = useState("");
   const [error, setError] = useState("");
   const [isExpired, setIsExpired] = useState(false);
+  const [submitting, setSubmitting] = useState(false);
+  const toast = useToast();
 
   useEffect(() => {
     async function loadJob() {
@@ -57,6 +60,7 @@ export default function ApplyPage() {
       return;
     }
 
+    setSubmitting(true);
     try {
       const response = await submitJobApplicationRequest(jobId, {
         email,
@@ -65,13 +69,31 @@ export default function ApplyPage() {
       });
       setMessage(response.message);
       setError("");
+      toast.success("Application submitted successfully!");
     } catch (submitError) {
-      setError(submitError instanceof Error ? submitError.message : "Application failed");
+      const msg = submitError instanceof Error ? submitError.message : "Application failed";
+      setError(msg);
+      toast.error(msg);
+    } finally {
+      setSubmitting(false);
     }
   }
 
   return (
     <main className="min-h-screen">
+      {submitting && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/60 backdrop-blur-sm">
+          <div className="rounded-2xl border border-slate-700 bg-slate-900/90 px-6 py-5 text-center shadow-2xl">
+            <div className="mx-auto mb-3 h-10 w-10 animate-spin rounded-full border-4 border-indigo-300/40 border-t-indigo-400" />
+            <p className="text-sm font-medium text-slate-100">
+              Submitting your application...
+            </p>
+            <p className="mt-1 text-xs text-slate-400">
+              Please wait while we process your resume.
+            </p>
+          </div>
+        </div>
+      )}
       <AppNavbar />
       <section className="mx-auto max-w-3xl py-10">
         {isExpired ? (
@@ -164,7 +186,9 @@ export default function ApplyPage() {
               {message && <p className="text-sm text-green-600 dark:text-green-400">{message}</p>}
               {error && <p className="text-sm text-red-600 dark:text-red-400">{error}</p>}
 
-              <Button type="submit">Submit application</Button>
+              <Button type="submit" disabled={submitting}>
+                {submitting ? "Submitting..." : "Submit application"}
+              </Button>
             </form>
           </>
         )}

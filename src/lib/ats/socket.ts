@@ -16,3 +16,18 @@ export function getAtsSocket(): Socket {
   });
   return socket;
 }
+
+/**
+ * Tear down the singleton socket so logout doesn't leave a live connection
+ * (and any room subscriptions) hanging around for the next sign-in.
+ */
+export function disconnectAtsSocket(): void {
+  if (!socket) return;
+  try {
+    socket.removeAllListeners();
+    socket.disconnect();
+  } catch {
+    // ignore — we're throwing it away anyway
+  }
+  socket = null;
+}

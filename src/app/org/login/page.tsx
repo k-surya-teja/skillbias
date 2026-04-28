@@ -6,6 +6,7 @@ import { Button, Label, TextInput } from "flowbite-react";
 import Image from "next/image";
 import { AppNavbar } from "@/components/navbar";
 import { useAuth } from "@/contexts/AuthContext";
+import { useToast } from "@/contexts/ToastContext";
 import { loginOrganization, signupOrganization } from "@/lib/ats/auth";
 import { ATS_API_BASE_URL } from "@/lib/ats/config";
 
@@ -20,13 +21,14 @@ export default function OrgLoginPage() {
 function OrgLoginContent() {
   const router = useRouter();
   const searchParams = useSearchParams();
-  const { organization, isLoaded } = useAuth();
+  const { organization, isLoaded, setOrganization } = useAuth();
   const [mode, setMode] = useState<"login" | "signup">("login");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [companyName, setCompanyName] = useState("");
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
+  const toast = useToast();
 
   const urlError = searchParams.get("error");
 
@@ -56,7 +58,9 @@ function OrgLoginContent() {
     setLoading(true);
     try {
       if (mode === "login") {
-        await loginOrganization({ email: email.trim(), password });
+        const res = await loginOrganization({ email: email.trim(), password });
+        setOrganization(res.organization);
+        toast.success("Signed in successfully");
         router.replace("/org/dashboard");
       } else {
         if (!companyName.trim()) {
@@ -64,15 +68,19 @@ function OrgLoginContent() {
           setLoading(false);
           return;
         }
-        await signupOrganization({
+        const res = await signupOrganization({
           companyName: companyName.trim(),
           email: email.trim(),
           password,
         });
+        setOrganization(res.organization);
+        toast.success("Account created successfully");
         router.replace("/org/dashboard");
       }
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Something went wrong.");
+      const msg = err instanceof Error ? err.message : "Something went wrong.";
+      setError(msg);
+      toast.error(msg);
     } finally {
       setLoading(false);
     }
