@@ -7,8 +7,7 @@ import Image from "next/image";
 import { AppNavbar } from "@/components/navbar";
 import { useAuth } from "@/contexts/AuthContext";
 import { useToast } from "@/contexts/ToastContext";
-import { loginOrganization, signupOrganization } from "@/lib/ats/auth";
-import { ATS_API_BASE_URL } from "@/lib/ats/config";
+import { loginOrganization, signInWithGoogle, signupOrganization } from "@/lib/ats/auth";
 
 export default function OrgLoginPage() {
   return (
@@ -40,17 +39,25 @@ function OrgLoginContent() {
     }
     if (urlError) {
       const messages: Record<string, string> = {
-        google_not_configured: "Google sign-in is not configured.",
-        missing_code: "Google sign-in was cancelled or failed.",
-        token_failed: "Google sign-in failed. Please try again.",
-        no_token: "Google sign-in failed. Please try again.",
-        userinfo_failed: "Could not get your Google profile.",
-        no_email: "No email from Google. Please use email/password sign up.",
-        email_exists: "An account with this email already exists. Try logging in.",
+        oauth_failed: "Google sign-in failed. Please try again.",
       };
       setError(messages[urlError] ?? "Something went wrong. Please try again.");
     }
   }, [isLoaded, organization, router, urlError]);
+
+  async function handleGoogle() {
+    setError("");
+    setLoading(true);
+    try {
+      await signInWithGoogle();
+      // Browser is redirected to Google; nothing to do here.
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : "Google sign-in failed.";
+      setError(msg);
+      toast.error(msg);
+      setLoading(false);
+    }
+  }
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
@@ -85,8 +92,6 @@ function OrgLoginContent() {
       setLoading(false);
     }
   }
-
-  const googleAuthUrl = `${ATS_API_BASE_URL}/auth/google`;
 
   if (!isLoaded) {
     return (
@@ -247,9 +252,11 @@ function OrgLoginContent() {
                   <span className="h-px flex-1 bg-gray-200 dark:bg-gray-700" />
                 </div>
 
-                <a
-                  href={googleAuthUrl}
-                  className="mt-4 flex w-full items-center justify-center gap-2 rounded-lg border border-gray-200 bg-white px-4 py-2.5 text-sm font-medium text-gray-700 transition hover:bg-gray-50 dark:border-gray-700 dark:bg-gray-800 dark:text-gray-200 dark:hover:bg-gray-700"
+                <button
+                  type="button"
+                  onClick={handleGoogle}
+                  disabled={loading}
+                  className="mt-4 flex w-full items-center justify-center gap-2 rounded-lg border border-gray-200 bg-white px-4 py-2.5 text-sm font-medium text-gray-700 transition hover:bg-gray-50 disabled:cursor-not-allowed disabled:opacity-60 dark:border-gray-700 dark:bg-gray-800 dark:text-gray-200 dark:hover:bg-gray-700"
                 >
                   <svg className="h-5 w-5" viewBox="0 0 24 24">
                     <path
@@ -270,7 +277,7 @@ function OrgLoginContent() {
                     />
                   </svg>
                   Sign in with Google
-                </a>
+                </button>
               </div>
             </div>
           </div>

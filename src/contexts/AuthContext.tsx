@@ -1,8 +1,10 @@
 "use client";
 
-import { createContext, useCallback, useContext, useEffect, useState } from "react";
-import { getCurrentOrganization } from "@/lib/ats/auth";
+import { createContext, useCallback, useContext, useEffect, useMemo, useState } from "react";
+import { createSupabaseBrowserClient } from "@/lib/supabase/client";
+import { dbOrgToOrganization } from "@/lib/ats/orgMapper";
 import { disconnectAtsSocket } from "@/lib/ats/socket";
+import type { OrganizationRow } from "@/lib/supabase/types";
 import type { Organization } from "@/lib/ats/types";
 
 type AuthContextValue = {
@@ -10,30 +12,40 @@ type AuthContextValue = {
   isLoaded: boolean;
   logout: () => Promise<void>;
   refreshOrg: () => Promise<void>;
-  /** Replace the org in context (e.g. after login/signup) without a network round-trip. */
   setOrganization: (org: Organization | null) => void;
 };
 
 const AuthContext = createContext<AuthContextValue | null>(null);
 
 export function AuthProvider({ children }: { children: React.ReactNode }) {
+  const supabase = useMemo(() => createSupabaseBrowserClient(), []);
   const [organization, setOrganization] = useState<Organization | null>(null);
   const [isLoaded, setIsLoaded] = useState(false);
 
+  const fetchOrgFromSession = useCallback(async (): Promise<Organization | null> => {
+    const {
+      data: { user },
+    } = await supabase.auth.getUser();
+    if (!user) return null;
+    const { data, error } = await supabase
+      .from("organizations")
+      .select("*")
+      .eq("user_id", user.id)
+      .single();
+    if (error || !data) return null;
+    return dbOrgToOrganization(data as OrganizationRow, user.email ?? "");
+  }, [supabase]);
+
   const refreshOrg = useCallback(async () => {
-    try {
-      const res = await getCurrentOrganization();
-      setOrganization(res.organization);
-    } catch {
-      setOrganization(null);
-    }
-  }, []);
+    setOrganization(await fetchOrgFromSession());
+  }, [fetchOrgFromSession]);
 
   useEffect(() => {
     let cancelled = false;
-    getCurrentOrganization()
-      .then((res) => {
-        if (!cancelled) setOrganization(res.organization);
+
+    fetchOrgFromSession()
+      .then((org) => {
+        if (!cancelled) setOrganization(org);
       })
       .catch(() => {
         if (!cancelled) setOrganization(null);
@@ -41,28 +53,38 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       .finally(() => {
         if (!cancelled) setIsLoaded(true);
       });
+
+    // Keep context in sync with Supabase sign-in / sign-out events fired from
+    // anywhere — including the OAuth callback route, server actions, or
+    // signOut() called in a different tab.
+    const {
+      data: { subscription },
+    } = supabase.auth.onAuthStateChange(async (_event, session) => {
+      if (cancelled) return;
+      if (!session) {
+        setOrganization(null);
+        return;
+      }
+      const org = await fetchOrgFromSession();
+      if (!cancelled) setOrganization(org);
+    });
+
     return () => {
       cancelled = true;
+      subscription.unsubscribe();
     };
-  }, []);
+  }, [supabase, fetchOrgFromSession]);
 
   const logout = useCallback(async () => {
-    // 1. Tell the backend to clear the auth cookie. Don't fail the local
-    //    cleanup if the network request errors — we still want to log the
-    //    user out client-side.
-    const { logoutOrganization } = await import("@/lib/ats/auth");
     try {
-      await logoutOrganization();
+      await supabase.auth.signOut();
     } catch {
       // Continue with local teardown even if the call fails.
     }
 
-    // 2. Tear down anything that might hold session/org-scoped state.
     setOrganization(null);
     disconnectAtsSocket();
 
-    // 3. Defensive sweep of web storage in case any future code stashes
-    //    user-specific data there. Today we don't, so this is a safety net.
     if (typeof window !== "undefined") {
       try {
         window.sessionStorage.clear();
@@ -70,15 +92,10 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       } catch {
         // Storage may be blocked (private mode, ITP, etc.) — ignore.
       }
-    }
-
-    // 4. Hard-redirect (not router.replace) so the entire React tree
-    //    unmounts. This guarantees no stale AuthContext, no stale page
-    //    state, no leftover socket listeners — a true blank slate.
-    if (typeof window !== "undefined") {
+      // Hard redirect so the entire React tree unmounts and no stale state survives.
       window.location.href = "/org/login";
     }
-  }, []);
+  }, [supabase]);
 
   const value: AuthContextValue = {
     organization,
